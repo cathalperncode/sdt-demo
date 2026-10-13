@@ -46,6 +46,16 @@
   input[type=text] { font: inherit; padding: .5rem .8rem; border: 1px solid #bbb; border-radius: 8px; width: 100%; max-width: 360px; }
   kbd { display: inline-block; min-width: 1.8em; text-align: center; font-family: inherit; font-weight: 700;
     border: 1px solid #aaa; border-bottom-width: 3px; border-radius: 6px; padding: 0 .4em; background: #fff; }
+  .idfields p { margin: .3rem 0 .8rem; }
+  .kc { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+    width: 2.1em; padding: .3em 0 .45em; font-weight: 700; border: 1px solid #999; border-bottom-width: 3px; border-radius: 7px;
+    background: #fff; color: #222; vertical-align: middle; margin: 2px 0; }
+  .kc span:last-child { font-size: 1.2em; line-height: .8; }
+  .corner { position: fixed; bottom: 28px; display: flex; align-items: center; gap: 12px; font-size: 1.25rem; font-weight: 600;
+    padding: 10px 16px; border-radius: 12px; border: 2px solid transparent; transition: background .08s, border-color .08s; }
+  .corner .kc { font-size: 1.25rem; }
+  .corner.left { left: 28px; } .corner.right { right: 28px; }
+  .corner.flash { background: #4a6a8f; border-color: #9cc3ef; }
   .seq { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
   .seq .box { width: 120px; height: 120px; border-radius: 50%; background: var(--stage); color: #fff;
     display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; position: relative; }
@@ -67,6 +77,10 @@
   #task .key { background: #333; border-color: #555; color: #eee; }
   #task .key.flash { background: #4a6a8f; border-color: #9cc3ef; }
   #taskInfo { font-size: .9rem; color: #aaa; min-height: 1.4em; }
+  #taskTitle { color: #fff; margin: 0 0 .2rem; min-height: 0; }
+  #taskTitle:empty { display: none; }
+  #taskPrompt { min-height: 1.6em; font-size: 1.1rem; color: #ddd; margin-top: 10px; }
+  #taskNext { min-height: 1.6em; color: #bbb; margin-top: 8px; }
   #practiceFb { min-height: 1.8em; font-weight: 700; font-size: 1.15rem; }
 
   /* Report */
@@ -116,8 +130,11 @@
       <p>You'll watch clouds of moving dots and decide, over and over, whether some of them were moving together.
         At the end you'll get a report of how sensitive you were and how biased your answers were, and you'll see
         how those numbers changed with every answer you gave.</p>
-      <p><label for="pid"><b>Your name or participant ID</b></label><br>
-        <input id="pid" type="text" autocomplete="off" placeholder="e.g. Jordan K. or P07"></p>
+      <div class="idfields">
+        <p><label for="fname"><b>First name</b></label><br><input id="fname" type="text" autocomplete="given-name"></p>
+        <p><label for="lname"><b>Last name</b></label><br><input id="lname" type="text" autocomplete="family-name"></p>
+        <p><label for="sid"><b>Student ID</b></label><br><input id="sid" type="text" autocomplete="off" inputmode="numeric"></p>
+      </div>
       <button id="toInstr" disabled>Continue</button>
     </div>
   </div>
@@ -126,47 +143,21 @@
 <!-- ============ INSTRUCTIONS ============ -->
 <section id="instructions" class="screen">
   <div class="wrap">
-    <h1>Your task</h1>
+    <h1>Instructions</h1>
     <div class="card">
-      <p>On every trial you'll see a circle full of moving dots.</p>
-      <ul>
-        <li>On <b>half</b> of the trials, some of the dots move <b>together in the same direction</b>. The rest move randomly. That's the <b>signal</b>. The shared direction changes from trial to trial, so it could be any direction.</li>
-        <li>On the other half, <b>every dot moves in its own random direction</b>. There's no signal, only <b>noise</b>.</li>
-      </ul>
-      <p style="font-size:1.15rem"><b>Your question every time: were some of the dots moving together?</b></p>
-      <div class="keys">
-        <div class="key"><b><kbd>P</kbd></b>Present<br><span class="small muted">some dots moved together</span></div>
-        <div class="key"><b><kbd>A</kbd></b>Absent<br><span class="small muted">all dots moved randomly</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-top:0">Here's what the two kinds of trials look like</h3>
+      <p>In this task you'll see a circle of moving dots.</p>
+      <p>On some trials, <b>a group of the dots move together</b> in the same direction.<br>
+         On other trials, <b>all of the dots move in random directions</b>.</p>
+      <p>Your job is to decide which one you saw.</p>
       <div class="demos">
-        <figure><canvas id="demoSignal"></canvas><figcaption><b>Signal present</b><br><span class="muted small">60% of dots moving together</span></figcaption></figure>
-        <figure><canvas id="demoNoise"></canvas><figcaption><b>Signal absent</b><br><span class="muted small">every dot random</span></figcaption></figure>
+        <figure><canvas id="demoSignal"></canvas><figcaption><span class="kc"><span>&lt;</span><span>,</span></span><br><b>Moving together</b></figcaption></figure>
+        <figure><canvas id="demoNoise"></canvas><figcaption><span class="kc"><span>&gt;</span><span>.</span></span><br><b>Moving random</b></figcaption></figure>
       </div>
-      <p class="small muted" style="text-align:center">In the task, many trials will be much harder than this.</p>
+      <p class="small muted" style="text-align:center">These examples are easy. In the task, many trials will be harder.</p>
+      <p>Next you'll try one example trial.</p>
+      <button id="toPractice">Next</button>
     </div>
 
-    <div class="card">
-      <h3 style="margin-top:0">How each trial runs</h3>
-      <div class="seq">
-        <div><div class="box">+</div><div class="cap">Look at the cross<br>1 s</div></div>
-        <div class="arrow">→</div>
-        <div><div class="box" style="font-size:.9rem;font-weight:400">· : · ∴ ·<br>∵ · : ·</div><div class="cap">Dots appear<br>1 s or 0.3 s</div></div>
-        <div class="arrow">→</div>
-        <div><div class="box">?</div><div class="cap">Answer now if you<br>haven't yet · 1.5 s</div></div>
-      </div>
-      <ul>
-        <li>Press <kbd>P</kbd> or <kbd>A</kbd> any time once the dots appear, or during the <b>?</b>. Your first key press counts.</li>
-        <li>If you don't answer before the <b>?</b> goes away, the trial is skipped, so keep your fingers on <kbd>P</kbd> and <kbd>A</kbd>.</li>
-        <li>When you're unsure, make your best guess. Every answer is useful.</li>
-        <li>You won't be told whether you were right during the real blocks. You'll see everything at the end.</li>
-      </ul>
-      <p>First, a short <b>practice</b> of 6 trials with feedback.</p>
-      <button id="toPractice">Start practice</button>
-    </div>
   </div>
 </section>
 
@@ -176,7 +167,7 @@
     <div class="card" style="text-align:center">
       <h1 id="betweenTitle"></h1>
       <div id="betweenBody"></div>
-      <p class="muted">Keep your fingers on <kbd>P</kbd> (Present) and <kbd>A</kbd> (Absent).</p>
+      <p class="muted">Rest your fingers on <span class="kc"><span>&lt;</span><span>,</span></span> (moving together) and <span class="kc"><span>&gt;</span><span>.</span></span> (moving random).</p>
       <p><b>Press the SPACE bar to begin.</b></p>
     </div>
   </div>
@@ -185,15 +176,15 @@
 <!-- ============ TASK ============ -->
 <section id="task" class="screen">
   <div class="wrap">
+    <h1 id="taskTitle"></h1>
     <div id="taskInfo"></div>
     <canvas id="stage"></canvas>
+    <div id="taskPrompt"></div>
     <div id="practiceFb"></div>
-    <div class="keys">
-      <div class="key" id="keyP"><b>P</b>Present</div>
-      <div class="key" id="keyA"><b>A</b>Absent</div>
-    </div>
-    <div class="small" style="color:#999">Were some of the dots moving together?</div>
+    <div id="taskNext"></div>
   </div>
+  <div class="corner left" id="keyT"><span class="kc"><span>&lt;</span><span>,</span></span><span>Moving together</span></div>
+  <div class="corner right" id="keyR"><span>Moving random</span><span class="kc"><span>&gt;</span><span>.</span></span></div>
 </section>
 
 <!-- ============ REPORT ============ -->
@@ -207,6 +198,7 @@
       <h2 style="margin-top:0">All four blocks</h2>
       <table class="summary" id="summaryTable"></table>
       <p class="small muted" style="margin-top:10px">
+        In signal detection terms, answering “moving together” is a <b>‘Present’</b> response and “moving random” is an <b>‘Absent’</b> response.
         <b>d′ (sensitivity)</b> is how well you could tell signal trials from noise trials. 0 means no better than guessing; bigger is better.
         <b>c (criterion, or bias)</b> is how willing you were to say “Present.” Negative c means you leaned toward “Present” (liberal),
         positive c means you leaned toward “Absent” (conservative), and 0 means no lean either way.
@@ -237,20 +229,21 @@
 // =====================================================================
 //  SETTINGS. Paste your Apps Script web app URL (ends in /exec) here.
 // =====================================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTg_2JV8z3FO62tpzTBblOUI61037INSKBnR9xgVQjTV75oMr5pXCaMreVlzqHVtAn/exec';
+const SCRIPT_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
 
 const N_TRIALS = 30;              // trials per block (half signal, half noise)
 const CONDITIONS = [              // the 4 blocks; order is shuffled per participant
-  { coherence: 0.60, duration: 1000 },
-  { coherence: 0.60, duration: 300 },
-  { coherence: 0.20, duration: 1000 },
-  { coherence: 0.20, duration: 300 },
+  { coherence: 0.80, duration: 1000 },
+  { coherence: 0.80, duration: 300 },
+  { coherence: 0.40, duration: 1000 },
+  { coherence: 0.40, duration: 300 },
 ];
-const PRACTICE = { coherence: 0.60, duration: 1000, nTrials: 6 };
+const PRACTICE = { coherence: 0.80, duration: 1000, nTrials: 6 };
+const EXAMPLE = { coherence: 0.80, duration: 1000, signal: 'present' }; // the single example trial
 
 const FIXATION_MS = 1000;         // + before each trial
 const RESPONSE_MS = 1500;         // ? window after the dots
-const FEEDBACK_MS = 900;          // practice only
+const FEEDBACK_MS = 1800;         // practice feedback (the dots replay during it)
 
 const DOTS = {
   count: 100,                     // dots in the aperture
@@ -394,27 +387,31 @@ function startDemos() {
 let keyHandler = null;
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  const k = e.key.toLowerCase();
-  if (['p', 'a', ' '].includes(k) && document.activeElement && document.activeElement.tagName !== 'INPUT') e.preventDefault();
+  // , (the < key) = moving together;  . (the > key) = moving random
+  const k = (e.code === 'Comma' || e.key === ',' || e.key === '<') ? 'together'
+          : (e.code === 'Period' || e.key === '.' || e.key === '>') ? 'random'
+          : e.key === ' ' ? ' ' : null;
+  if (!k) return;
+  if (document.activeElement && document.activeElement.tagName !== 'INPUT') e.preventDefault();
   if (keyHandler) keyHandler(k, performance.now());
 });
-function flashKey(k) { const el = $(k === 'p' ? 'keyP' : 'keyA'); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
+function flashKey(k) { const el = $(k === 'together' ? 'keyT' : 'keyR'); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
 function waitForSpace() { return new Promise(res => { keyHandler = (k) => { if (k === ' ') { keyHandler = null; res(); } }; }); }
 
 // =====================================================================
 //  One trial
 // =====================================================================
-function runTrial(rdk, cond, signal) {
+function runTrial(rdk, cond, signal, opts = {}) {
   return new Promise((resolve) => {
     const direction = Math.random() * 360;
     let phase = 'fixation', phaseStart = performance.now(), stimOnset = null;
     let response = null, rt = null;
     keyHandler = (k, t) => {
-      if ((k !== 'p' && k !== 'a') || response || phase === 'fixation') return;
-      response = k === 'p' ? 'present' : 'absent'; rt = t - stimOnset; flashKey(k);
+      if ((k !== 'together' && k !== 'random') || response || phase === 'fixation') return;
+      response = k === 'together' ? 'present' : 'absent'; rt = t - stimOnset; flashKey(k);
     };
     const finish = () => { keyHandler = null; rdk.clear('blank');
-      resolve({ signal, response: response || 'none', rt: rt == null ? null : Math.round(rt), direction: Math.round(direction), nCoherent: rdk.nCoh }); };
+      resolve({ signal, response: response || 'none', rt: rt == null ? null : Math.round(rt), direction: Math.round(direction), dirRaw: direction, nCoherent: rdk.nCoh }); };
     const frame = (now) => {
       const el = now - phaseStart;
       if (phase === 'fixation') {
@@ -428,8 +425,8 @@ function runTrial(rdk, cond, signal) {
         } else { rdk.step(now); rdk.clear('dots'); return requestAnimationFrame(frame); }
       }
       if (phase === 'query') {
-        if (response) { rdk.clear(response === 'present' ? 'P' : 'A'); return setTimeout(finish, 200); }
-        if (now - phaseStart >= RESPONSE_MS) return finish();
+        if (response) { rdk.clear('blank'); return setTimeout(finish, 150); }
+        if (!opts.untimed && now - phaseStart >= RESPONSE_MS) return finish();
         rdk.clear('query'); return requestAnimationFrame(frame);
       }
     };
@@ -442,30 +439,68 @@ function runTrial(rdk, cond, signal) {
 // =====================================================================
 const session = {
   id: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '-' + Math.random().toString(36).slice(2, 6),
-  participant: '', started: null, order: [], blocks: [],
+  participant: '', firstName: '', lastName: '', studentId: '', started: null, order: [], blocks: [],
 };
 let stageRdk = null;
 
+// Replays the trial's dot motion (same direction and coherence) on a loop
+// while feedback is shown. Returns a function that stops it.
+function replay(rdk, cond, t) {
+  let on = true, t0 = performance.now();
+  rdk.start(cond.coherence, t.signal === 'present', t.dirRaw, t0);
+  const loop = (now) => {
+    if (!on) return;
+    if (now - t0 > Math.max(cond.duration, 1000)) { t0 = now; rdk.start(cond.coherence, t.signal === 'present', t.dirRaw, now); }
+    rdk.step(now); rdk.clear('dots'); requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  return () => { on = false; rdk.clear('blank'); };
+}
+const FEEDBACK = {
+  'Hit': ['✓ Correct! Some of the dots were moving together.', '#9fe09a'],
+  'Correct Rejection': ['✓ Correct! All of the dots were moving randomly.', '#9fe09a'],
+  'Miss': ['✗ Not quite. Some of the dots were moving together.', '#ffb38a'],
+  'False Alarm': ['✗ Not quite. All of the dots were moving randomly.', '#ffb38a'],
+  'No response': ['Too slow. Respond before the ? disappears.', '#ffd76a'],
+};
+function showFeedback(t) {
+  const msg = FEEDBACK[outcomeOf(t.signal, t.response)];
+  $('practiceFb').textContent = msg[0]; $('practiceFb').style.color = msg[1];
+}
+function clearTaskText() { ['taskTitle', 'taskInfo', 'taskPrompt', 'practiceFb', 'taskNext'].forEach(id => { $(id).textContent = ''; }); }
+
+async function runExample() {
+  show('task'); clearTaskText();
+  stageRdk = stageRdk || new RDK($('stage'));
+  $('taskTitle').textContent = 'Example trial';
+  $('taskPrompt').textContent = 'Look at the + in the middle, then watch the dots.';
+  const promptTimer = setTimeout(() => {
+    $('taskPrompt').innerHTML = 'Were the dots <b>moving together</b> (<b>,</b>) or <b>moving random</b> (<b>.</b>)? Press a key to answer.';
+  }, FIXATION_MS);
+  const t = await runTrial(stageRdk, EXAMPLE, EXAMPLE.signal, { untimed: true });
+  clearTimeout(promptTimer);
+  $('taskPrompt').textContent = 'Here are those dots again:';
+  showFeedback(t);
+  const stop = replay(stageRdk, EXAMPLE, t);
+  $('taskNext').innerHTML = 'Press <b>SPACE</b> to continue.';
+  await sleep(300); await waitForSpace(); stop(); clearTaskText();
+}
+
 async function runPractice() {
-  show('task');
+  show('task'); clearTaskText();
   stageRdk = stageRdk || new RDK($('stage'));
   const signals = shuffle([...Array(PRACTICE.nTrials)].map((_, i) => i % 2 ? 'present' : 'absent'));
   for (let i = 0; i < signals.length; i++) {
     $('taskInfo').textContent = `Practice · trial ${i + 1} of ${signals.length}`;
     $('practiceFb').textContent = '';
     const t = await runTrial(stageRdk, PRACTICE, signals[i]);
-    const out = outcomeOf(t.signal, t.response);
-    const msg = {
-      'Hit': ['✓ Correct: some dots were moving together.', '#9fe09a'],
-      'Correct Rejection': ['✓ Correct: all the dots were random.', '#9fe09a'],
-      'Miss': ['✗ Some dots were moving together that time.', '#ffb38a'],
-      'False Alarm': ['✗ All the dots were random that time.', '#ffb38a'],
-      'No response': ['Too slow. Press P or A before the ? disappears.', '#ffd76a'],
-    }[out];
-    $('practiceFb').textContent = msg[0]; $('practiceFb').style.color = msg[1];
-    await sleep(FEEDBACK_MS + 400);
+    showFeedback(t);
+    const stop = replay(stageRdk, PRACTICE, t);
+    await sleep(FEEDBACK_MS); stop();
+    $('practiceFb').textContent = '';
+    await sleep(300);
   }
-  $('practiceFb').textContent = '';
+  clearTaskText();
 }
 
 async function runBlock(cond, idx) {
@@ -483,19 +518,26 @@ async function runBlock(cond, idx) {
 
 async function runSession() {
   session.started = new Date().toISOString();
+  await runExample();
+  $('betweenTitle').textContent = 'Practice';
+  $('betweenBody').innerHTML = `<p>Next you'll do ${PRACTICE.nTrials} practice trials, with feedback after each one.</p>
+    <ul style="text-align:left;max-width:560px;margin:0 auto 1rem">
+      <li>Respond as soon as you've decided, either while the dots are moving or when the <b>?</b> appears.</li>
+      <li>The <b>?</b> only stays up for a moment, so don't wait too long.</li>
+      <li>If you're not sure, make your best guess.</li>
+    </ul>`;
+  show('between'); await waitForSpace();
   await runPractice();
   $('betweenTitle').textContent = 'Practice done!';
-  $('betweenBody').innerHTML = `<p>Now the real task: <b>${CONDITIONS.length} blocks of ${N_TRIALS} trials</b>, about 7 minutes in all.
-    Blocks differ in difficulty: the dots may be shown for 1 second or only 0.3 seconds, and more or fewer of them may move together.
-    <b>No feedback from here on.</b> You'll see everything at the end.</p>`;
+  $('betweenBody').innerHTML = `<p>Now the main task: <b>${CONDITIONS.length} blocks</b> of ${N_TRIALS} trials, about 7 minutes in all.
+    Some blocks are harder than others. You won't get feedback from here on, but you'll see your results at the end.</p>`;
   show('between'); await waitForSpace();
 
   session.order = shuffle(CONDITIONS);
   for (let b = 0; b < session.order.length; b++) {
     const cond = session.order[b];
     $('betweenTitle').textContent = `Block ${b + 1} of ${session.order.length}`;
-    $('betweenBody').innerHTML = `<p style="font-size:1.2rem">This block: <b>${Math.round(cond.coherence * 100)}%</b> of the dots move together on signal trials,
-      and the dots are shown for <b>${cond.duration / 1000} s</b>.</p>` + (b ? '<p class="muted">Take a short break if you need one.</p>' : '');
+    $('betweenBody').innerHTML = b ? '<p>Take a short break if you need one.</p>' : '';
     show('between'); await waitForSpace();
     const trials = await runBlock(cond, b);
     session.blocks.push({ num: b + 1, ...cond, trials });
@@ -543,8 +585,8 @@ function drawFrame(ctx, block, frames, k, scale = 1) {
   const py = 56, ph = 40;
   if (last) {
     const label = last.outcome === 'No response'
-      ? `Trial ${k}: signal ${last.signal} · no response`
-      : `Trial ${k}: signal ${last.signal} · you said “${last.response === 'present' ? 'Present' : 'Absent'}” → ${last.outcome.toUpperCase()}`;
+      ? `Trial ${k}: ${last.signal === 'present' ? 'some dots together' : 'all dots random'} · no response`
+      : `Trial ${k}: ${last.signal === 'present' ? 'some dots together' : 'all dots random'} · you said “${last.response === 'present' ? 'together' : 'random'}” → ${last.outcome.toUpperCase()}`;
     ctx.font = '600 17px "Source Sans 3", sans-serif';
     const w = Math.min(FW - 40, ctx.measureText(label).width + 40);
     ctx.fillStyle = OUT_COL[last.outcome]; rrect(ctx, (FW - w) / 2, py, w, ph, 20); ctx.fill();
@@ -706,7 +748,7 @@ function mathHtml(s, block) {
 
 function buildReport() {
   show('report');
-  $('reportWho').textContent = `${session.participant} · ${new Date().toLocaleString()}`;
+  $('reportWho').textContent = `${session.participant} · Student ID ${session.studentId} · ${new Date().toLocaleString()}`;
   const finals = session.blocks.map(b => blockFrames(b));
 
   // summary table
@@ -749,7 +791,7 @@ function buildReport() {
     card.querySelector('.dlgif').onclick = () => gifStore[b.num] && downloadBlob(gifStore[b.num], gifName(b));
   });
 
-  $('dlCsv').onclick = () => downloadBlob(new Blob([toCsv()], { type: 'text/csv' }), `sdt-demo_${safe(session.participant)}_${session.id}.csv`);
+  $('dlCsv').onclick = () => downloadBlob(new Blob([toCsv()], { type: 'text/csv' }), `sdt-demo_${fileTag()}_${session.id}.csv`);
   $('dlAllGifs').onclick = async () => { for (const b of session.blocks) { if (gifStore[b.num]) { downloadBlob(gifStore[b.num], gifName(b)); await sleep(400); } } };
 
   saveEverything(finals);
@@ -759,7 +801,8 @@ function buildReport() {
 //  GIFs, CSV, and saving to Google
 // =====================================================================
 const safe = (s) => (s || 'anon').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40) || 'anon';
-const gifName = (b) => `sdt-demo_${safe(session.participant)}_${session.id}_block${b.num}_coh${Math.round(b.coherence * 100)}_${b.duration}ms.gif`;
+const fileTag = () => `${safe(session.studentId)}_${safe(session.lastName)}-${safe(session.firstName)}`;
+const gifName = (b) => `sdt-demo_${fileTag()}_${session.id}_block${b.num}_coh${Math.round(b.coherence * 100)}_${b.duration}ms.gif`;
 
 async function makeGif(block, frames) {
   const { GIFEncoder, quantize, applyPalette } = window.gifenc;
@@ -784,7 +827,7 @@ function downloadBlob(blob, name) { const a = document.createElement('a'); a.hre
 function trialRows() {
   const rows = [];
   for (const b of session.blocks) for (const t of b.trials) rows.push({
-    session_id: session.id, participant: session.participant, block: b.num, coherence: b.coherence, duration_ms: b.duration,
+    session_id: session.id, student_id: session.studentId, first_name: session.firstName, last_name: session.lastName, block: b.num, coherence: b.coherence, duration_ms: b.duration,
     trial: t.trial, signal: t.signal, direction_deg: t.signal === 'present' ? t.direction : '', n_coherent_dots: t.nCoherent,
     response: t.response, outcome: t.outcome, rt_ms: t.rt == null ? '' : t.rt,
   });
@@ -792,7 +835,7 @@ function trialRows() {
 }
 function blockRows(finals) {
   return session.blocks.map((b, i) => { const s = finals[i][finals[i].length - 1]; return {
-    session_id: session.id, participant: session.participant, started: session.started, block: b.num,
+    session_id: session.id, student_id: session.studentId, first_name: session.firstName, last_name: session.lastName, started: session.started, block: b.num,
     coherence: b.coherence, duration_ms: b.duration, n_trials: b.trials.length,
     hits: s.h, misses: s.m, false_alarms: s.fa, correct_rejections: s.cr, no_response: s.nr,
     hit_rate: s.hr ?? '', fa_rate: s.far ?? '', hit_rate_corrected: +s.hrC.toFixed(4), fa_rate_corrected: +s.farC.toFixed(4),
@@ -828,7 +871,7 @@ async function saveEverything(finals) {
     try {
       const blob = await makeGif(b, finals[i]); gifStore[b.num] = blob; made++;
       const btn = $('blockReports').children[i].querySelector('.dlgif'); btn.disabled = false; btn.textContent = 'Download this block as a GIF';
-      if (online) { await post({ type: 'gif', session_id: session.id, participant: session.participant, block: b.num, name: gifName(b), data: await blobToBase64(blob) }); sent++; }
+      if (online) { await post({ type: 'gif', session_id: session.id, student_id: session.studentId, first_name: session.firstName, last_name: session.lastName, block: b.num, name: gifName(b), data: await blobToBase64(blob) }); sent++; }
     } catch (e) { console.error(e); }
   }
   $('dlAllGifs').disabled = made === 0;
@@ -844,9 +887,16 @@ async function saveEverything(finals) {
   const desktop = window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches && window.innerWidth >= 800;
   if (!desktop) return show('gate');
   show('welcome');
-  $('pid').addEventListener('input', () => { $('toInstr').disabled = !$('pid').value.trim(); });
-  $('pid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && $('pid').value.trim()) $('toInstr').click(); });
-  $('toInstr').onclick = () => { session.participant = $('pid').value.trim(); $('pid').blur(); show('instructions'); startDemos(); };
+  const ids = ['fname', 'lname', 'sid'], filled = () => ids.every(id => $(id).value.trim());
+  ids.forEach(id => {
+    $(id).addEventListener('input', () => { $('toInstr').disabled = !filled(); });
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter' && filled()) $('toInstr').click(); });
+  });
+  $('toInstr').onclick = () => {
+    session.firstName = $('fname').value.trim(); session.lastName = $('lname').value.trim(); session.studentId = $('sid').value.trim();
+    session.participant = `${session.firstName} ${session.lastName}`;
+    document.activeElement.blur(); show('instructions'); startDemos();
+  };
   $('toPractice').onclick = async () => { $('toPractice').blur(); await document.fonts.ready; runSession(); };
   window.addEventListener('beforeunload', (e) => { if (session.started && !$('report').classList.contains('on')) { e.preventDefault(); e.returnValue = ''; } });
 })();
