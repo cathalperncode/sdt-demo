@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion Detection Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<!--
+  Motion detection: a signal detection theory class demo.
+  Inspired by "d′etectable" by Adam Krawitz (https://decidables.github.io/detectable/),
+  whose text is CC-BY-SA-4.0 and code GPL-3.0-or-later. This page is written from
+  scratch and does not copy that code, but follows its layout and color scheme.
+  GIF encoding: gifenc by Matt DesLauriers (MIT), included inline below.
+-->
+<style>
+  :root {
+    --ink: #222;
+    --muted: #666;
+    --bg: #f6f6f4;
+    --card: #fff;
+    --line: #dcdcd8;
+    --accent: #1f4e79;
+    --hit: #b2d8a8;  --miss: #f4c08a;  --fa: #a3c0db;  --cr: #e4908c;
+    --hr: #fbfb9c;   --far: #c6a6cd;   --acc: #cccccc;
+    --stage: #3b3b3b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Source Sans 3", "Source Sans Pro", system-ui, sans-serif; font-size: 18px; line-height: 1.5; }
+  .screen { display: none; min-height: 100vh; padding: 32px 16px 64px; }
+  .screen.on { display: block; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin: 0 0 .5rem; line-height: 1.2; }
+  h2 { font-size: 1.4rem; margin: 1.6rem 0 .5rem; }
+  h3 { font-size: 1.1rem; margin: 1.2rem 0 .3rem; }
+  p { margin: .5rem 0 .9rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; margin: 18px 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: .88rem; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: .55rem 1.4rem;
+    background: var(--accent); color: #fff; cursor: pointer; }
+  button.secondary { background: #e6ebf1; color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=text] { font: inherit; padding: .5rem .8rem; border: 1px solid #bbb; border-radius: 8px; width: 100%; max-width: 360px; }
+  kbd { display: inline-block; min-width: 1.8em; text-align: center; font-family: inherit; font-weight: 700;
+    border: 1px solid #aaa; border-bottom-width: 3px; border-radius: 6px; padding: 0 .4em; background: #fff; }
+  .seq { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+  .seq .box { width: 120px; height: 120px; border-radius: 50%; background: var(--stage); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; position: relative; }
+  .seq .cap { text-align: center; font-size: .82rem; color: var(--muted); margin-top: 4px; }
+  .seq .arrow { color: #999; font-size: 1.4rem; }
+  .demos { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+  .demos figure { margin: 0; text-align: center; }
+  .demos figcaption { font-size: .9rem; margin-top: 6px; }
+  .keys { display: flex; gap: 22px; justify-content: center; margin: 14px 0; }
+  .key { border: 2px solid #bbb; border-radius: 12px; padding: 10px 18px; text-align: center; min-width: 170px; background: #fff;
+    transition: background .08s, border-color .08s; }
+  .key b { display: block; font-size: 1.7rem; line-height: 1.1; }
+  .key.flash { background: #dfe9f5; border-color: var(--accent); }
+
+  /* Task screen */
+  #task { background: #2a2a2a; color: #eee; }
+  #task .wrap { text-align: center; padding-top: 2vh; }
+  #stage { display: block; margin: 0 auto; }
+  #task .key { background: #333; border-color: #555; color: #eee; }
+  #task .key.flash { background: #4a6a8f; border-color: #9cc3ef; }
+  #taskInfo { font-size: .9rem; color: #aaa; min-height: 1.4em; }
+  #practiceFb { min-height: 1.8em; font-weight: 700; font-size: 1.15rem; }
+
+  /* Report */
+  .summary { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  .summary th, .summary td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: center; }
+  .summary th { font-weight: 600; background: #fafafa; }
+  .summary td:first-child, .summary th:first-child { text-align: left; }
+  .lapse { display: block; width: 100%; max-width: 640px; margin: 0 auto; border-radius: 8px; border: 1px solid var(--line); }
+  .controls { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 12px 0 4px; }
+  .controls input[type=range] { width: 260px; }
+  .controls select { font: inherit; padding: .3rem; border-radius: 6px; }
+  .math { background: #fafaf7; border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; margin-top: 16px; }
+  .math .step { margin: 10px 0; }
+  .math .eq { font-size: 1.05rem; margin: 2px 0 2px 12px; }
+  .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 .2em; font-size: .95em; }
+  .frac > span:first-child { border-bottom: 1.5px solid currentColor; padding: 0 .25em; }
+  .frac > span:last-child { padding: 0 .25em; }
+  .v { font-weight: 700; }
+  .tag { display: inline-block; padding: 0 .45em; border-radius: 5px; font-weight: 600; }
+  .t-h { background: var(--hit); } .t-m { background: var(--miss); } .t-fa { background: var(--fa); } .t-cr { background: var(--cr); }
+  .t-hr { background: var(--hr); } .t-far { background: var(--far); }
+  .status { font-size: .92rem; padding: 8px 12px; border-radius: 8px; background: #eef3f8; margin: 10px 0; }
+  .status.ok { background: #e7f4e4; } .status.warn { background: #fdf3df; }
+  .dlrow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+  #gate .card { text-align: center; max-width: 560px; margin: 12vh auto 0; }
+  .credit { font-size: .8rem; color: var(--muted); text-align: center; margin-top: 30px; }
+  .credit a { color: inherit; }
+</style>
+</head>
+<body>
+
+<!-- ============ DESKTOP GATE ============ -->
+<section id="gate" class="screen">
+  <div class="card">
+    <h1>Please use a computer</h1>
+    <p>This demo needs a keyboard and a reasonably large screen. Open this page on a laptop or desktop computer.</p>
+    <p class="muted small">If you're already on a computer, make your browser window wider and reload the page.</p>
+  </div>
+</section>
+
+<!-- ============ WELCOME ============ -->
+<section id="welcome" class="screen">
+  <div class="wrap">
+    <h1>Seeing motion in noise</h1>
+    <p class="muted">A signal detection theory demo · about 9 minutes</p>
+    <div class="card">
+      <p>You'll watch clouds of moving dots and decide, over and over, whether some of them were moving together.
+        At the end you'll get a report of how sensitive you were and how biased your answers were, and you'll see
+        how those numbers changed with every answer you gave.</p>
+      <p><label for="pid"><b>Your name or participant ID</b></label><br>
+        <input id="pid" type="text" autocomplete="off" placeholder="e.g. Jordan K. or P07"></p>
+      <button id="toInstr" disabled>Continue</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INSTRUCTIONS ============ -->
+<section id="instructions" class="screen">
+  <div class="wrap">
+    <h1>Your task</h1>
+    <div class="card">
+      <p>On every trial you'll see a circle full of moving dots.</p>
+      <ul>
+        <li>On <b>half</b> of the trials, some of the dots move <b>together in the same direction</b>. The rest move randomly. That's the <b>signal</b>. The shared direction changes from trial to trial, so it could be any direction.</li>
+        <li>On the other half, <b>every dot moves in its own random direction</b>. There's no signal, only <b>noise</b>.</li>
+      </ul>
+      <p style="font-size:1.15rem"><b>Your question every time: were some of the dots moving together?</b></p>
+      <div class="keys">
+        <div class="key"><b><kbd>P</kbd></b>Present<br><span class="small muted">some dots moved together</span></div>
+        <div class="key"><b><kbd>A</kbd></b>Absent<br><span class="small muted">all dots moved randomly</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Here's what the two kinds of trials look like</h3>
+      <div class="demos">
+        <figure><canvas id="demoSignal"></canvas><figcaption><b>Signal present</b><br><span class="muted small">60% of dots moving together</span></figcaption></figure>
+        <figure><canvas id="demoNoise"></canvas><figcaption><b>Signal absent</b><br><span class="muted small">every dot random</span></figcaption></figure>
+      </div>
+      <p class="small muted" style="text-align:center">In the task, many trials will be much harder than this.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">How each trial runs</h3>
+      <div class="seq">
+        <div><div class="box">+</div><div class="cap">Look at the cross<br>1 s</div></div>
+        <div class="arrow">→</div>
+        <div><div class="box" style="font-size:.9rem;font-weight:400">· : · ∴ ·<br>∵ · : ·</div><div class="cap">Dots appear<br>1 s or 0.3 s</div></div>
+        <div class="arrow">→</div>
+        <div><div class="box">?</div><div class="cap">Answer now if you<br>haven't yet · 1.5 s</div></div>
+      </div>
+      <ul>
+        <li>Press <kbd>P</kbd> or <kbd>A</kbd> any time once the dots appear, or during the <b>?</b>. Your first key press counts.</li>
+        <li>If you don't answer before the <b>?</b> goes away, the trial is skipped, so keep your fingers on <kbd>P</kbd> and <kbd>A</kbd>.</li>
+        <li>When you're unsure, make your best guess. Every answer is useful.</li>
+        <li>You won't be told whether you were right during the real blocks. You'll see everything at the end.</li>
+      </ul>
+      <p>First, a short <b>practice</b> of 6 trials with feedback.</p>
+      <button id="toPractice">Start practice</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BREAK / BLOCK INTRO ============ -->
+<section id="between" class="screen">
+  <div class="wrap">
+    <div class="card" style="text-align:center">
+      <h1 id="betweenTitle"></h1>
+      <div id="betweenBody"></div>
+      <p class="muted">Keep your fingers on <kbd>P</kbd> (Present) and <kbd>A</kbd> (Absent).</p>
+      <p><b>Press the SPACE bar to begin.</b></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TASK ============ -->
+<section id="task" class="screen">
+  <div class="wrap">
+    <div id="taskInfo"></div>
+    <canvas id="stage"></canvas>
+    <div id="practiceFb"></div>
+    <div class="keys">
+      <div class="key" id="keyP"><b>P</b>Present</div>
+      <div class="key" id="keyA"><b>A</b>Absent</div>
+    </div>
+    <div class="small" style="color:#999">Were some of the dots moving together?</div>
+  </div>
+</section>
+
+<!-- ============ REPORT ============ -->
+<section id="report" class="screen">
+  <div class="wrap">
+    <h1>Your results</h1>
+    <p class="muted" id="reportWho"></p>
+    <div id="saveStatus" class="status">Preparing your results…</div>
+
+    <div class="card">
+      <h2 style="margin-top:0">All four blocks</h2>
+      <table class="summary" id="summaryTable"></table>
+      <p class="small muted" style="margin-top:10px">
+        <b>d′ (sensitivity)</b> is how well you could tell signal trials from noise trials. 0 means no better than guessing; bigger is better.
+        <b>c (criterion, or bias)</b> is how willing you were to say “Present.” Negative c means you leaned toward “Present” (liberal),
+        positive c means you leaned toward “Absent” (conservative), and 0 means no lean either way.
+      </p>
+      <div class="dlrow">
+        <button class="secondary" id="dlCsv">Download trial data (CSV)</button>
+        <button class="secondary" id="dlAllGifs" disabled>Download all 4 GIFs</button>
+      </div>
+    </div>
+
+    <div id="blockReports"></div>
+
+    <p class="credit">Inspired by the Model Fitting page of
+      <a href="https://decidables.github.io/detectable/fitting.html" target="_blank" rel="noopener">d′etectable</a> by Adam Krawitz (CC-BY-SA-4.0).
+      GIF encoding by <a href="https://github.com/mattdesl/gifenc" target="_blank" rel="noopener">gifenc</a> (MIT).</p>
+  </div>
+</section>
+
+<!-- gifenc 1.0.3 (MIT, Matt DesLauriers), inlined so the page has no outside code to load -->
+<script>
+(function(){var X={signature:"GIF",version:"89a",trailer:59,extensionIntroducer:33,applicationExtensionLabel:255,graphicControlExtensionLabel:249,imageSeparator:44,signatureSize:3,versionSize:3,globalColorTableFlagMask:128,colorResolutionMask:112,sortFlagMask:8,globalColorTableSizeMask:7,applicationIdentifierSize:8,applicationAuthCodeSize:3,disposalMethodMask:28,userInputFlagMask:2,transparentColorFlagMask:1,localColorTableFlagMask:128,interlaceFlagMask:64,idSortFlagMask:32,localColorTableSizeMask:7};function F(t=256){let e=0,s=new Uint8Array(t);return{get buffer(){return s.buffer},reset(){e=0},bytesView(){return s.subarray(0,e)},bytes(){return s.slice(0,e)},writeByte(r){n(e+1),s[e]=r,e++},writeBytes(r,o=0,i=r.length){n(e+i);for(let c=0;c<i;c++)s[e++]=r[c+o]},writeBytesView(r,o=0,i=r.byteLength){n(e+i),s.set(r.subarray(o,o+i),e),e+=i}};function n(r){var o=s.length;if(o>=r)return;var i=1024*1024;r=Math.max(r,o*(o<i?2:1.125)>>>0),o!=0&&(r=Math.max(r,256));let c=s;s=new Uint8Array(r),e>0&&s.set(c.subarray(0,e),0)}}var O=12,J=5003,lt=[0,1,3,7,15,31,63,127,255,511,1023,2047,4095,8191,16383,32767,65535];function at(t,e,s,n,r=F(512),o=new Uint8Array(256),i=new Int32Array(J),c=new Int32Array(J)){let x=i.length,a=Math.max(2,n);o.fill(0),c.fill(0),i.fill(-1);let l=0,f=0,g=a+1,h=g,b=!1,w=h,_=(1<<w)-1,u=1<<g-1,k=u+1,B=u+2,p=0,A=s[0],z=0;for(let y=x;y<65536;y*=2)++z;z=8-z,r.writeByte(a),I(u);let d=s.length;for(let y=1;y<d;y++){t:{let m=s[y],v=(m<<O)+A,M=m<<z^A;if(i[M]===v){A=c[M];break t}let V=M===0?1:x-M;for(;i[M]>=0;)if(M-=V,M<0&&(M+=x),i[M]===v){A=c[M];break t}I(A),A=m,B<1<<O?(c[M]=B++,i[M]=v):(i.fill(-1),B=u+2,b=!0,I(u))}}return I(A),I(k),r.writeByte(0),r.bytesView();function I(y){for(l&=lt[f],f>0?l|=y<<f:l=y,f+=w;f>=8;)o[p++]=l&255,p>=254&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0),l>>=8,f-=8;if((B>_||b)&&(b?(w=h,_=(1<<w)-1,b=!1):(++w,_=w===O?1<<w:(1<<w)-1)),y==k){for(;f>0;)o[p++]=l&255,p>=254&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0),l>>=8,f-=8;p>0&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0)}}}var $=at;function D(t,e,s){return t<<8&63488|e<<2&992|s>>3}function G(t,e,s,n){return t>>4|e&240|(s&240)<<4|(n&240)<<8}function j(t,e,s){return t>>4<<8|e&240|s>>4}function R(t,e,s){return t<e?e:t>s?s:t}function T(t){return t*t}function tt(t,e,s){var n=0,r=1e100;let o=t[e],i=o.cnt,c=o.ac,x=o.rc,a=o.gc,l=o.bc;for(var f=o.fw;f!=0;f=t[f].fw){let h=t[f],b=h.cnt,w=i*b/(i+b);if(!(w>=r)){var g=0;s&&(g+=w*T(h.ac-c),g>=r)||(g+=w*T(h.rc-x),!(g>=r)&&(g+=w*T(h.gc-a),!(g>=r)&&(g+=w*T(h.bc-l),!(g>=r)&&(r=g,n=f))))}}o.err=r,o.nn=n}function Q(){return{ac:0,rc:0,gc:0,bc:0,cnt:0,nn:0,fw:0,bk:0,tm:0,mtm:0,err:0}}function ut(t,e){let s=e==="rgb444"?4096:65536,n=new Array(s),r=t.length;if(e==="rgba4444")for(let o=0;o<r;++o){let i=t[o],c=i>>24&255,x=i>>16&255,a=i>>8&255,l=i&255,f=G(l,a,x,c),g=f in n?n[f]:n[f]=Q();g.rc+=l,g.gc+=a,g.bc+=x,g.ac+=c,g.cnt++}else if(e==="rgb444")for(let o=0;o<r;++o){let i=t[o],c=i>>16&255,x=i>>8&255,a=i&255,l=j(a,x,c),f=l in n?n[l]:n[l]=Q();f.rc+=a,f.gc+=x,f.bc+=c,f.cnt++}else for(let o=0;o<r;++o){let i=t[o],c=i>>16&255,x=i>>8&255,a=i&255,l=D(a,x,c),f=l in n?n[l]:n[l]=Q();f.rc+=a,f.gc+=x,f.bc+=c,f.cnt++}return n}function H(t,e,s={}){let{format:n="rgb565",clearAlpha:r=!0,clearAlphaColor:o=0,clearAlphaThreshold:i=0,oneBitAlpha:c=!1}=s;if(!t||!t.buffer)throw new Error("quantize() expected RGBA Uint8Array data");if(!(t instanceof Uint8Array)&&!(t instanceof Uint8ClampedArray))throw new Error("quantize() expected RGBA Uint8Array data");let x=new Uint32Array(t.buffer),a=s.useSqrt!==!1,l=n==="rgba4444",f=ut(x,n),g=f.length,h=g-1,b=new Uint32Array(g+1);for(var w=0,u=0;u<g;++u){let C=f[u];if(C!=null){var _=1/C.cnt;l&&(C.ac*=_),C.rc*=_,C.gc*=_,C.bc*=_,f[w++]=C}}T(e)/w<.022&&(a=!1);for(var u=0;u<w-1;++u)f[u].fw=u+1,f[u+1].bk=u,a&&(f[u].cnt=Math.sqrt(f[u].cnt));a&&(f[u].cnt=Math.sqrt(f[u].cnt));var k,B,p;for(u=0;u<w;++u){tt(f,u,!1);var A=f[u].err;for(B=++b[0];B>1&&(p=B>>1,!(f[k=b[p]].err<=A));B=p)b[B]=k;b[B]=u}var z=w-e;for(u=0;u<z;){for(var d;;){var I=b[1];if(d=f[I],d.tm>=d.mtm&&f[d.nn].mtm<=d.tm)break;d.mtm==h?I=b[1]=b[b[0]--]:(tt(f,I,!1),d.tm=u);var A=f[I].err;for(B=1;(p=B+B)<=b[0]&&(p<b[0]&&f[b[p]].err>f[b[p+1]].err&&p++,!(A<=f[k=b[p]].err));B=p)b[B]=k;b[B]=I}var y=f[d.nn],m=d.cnt,v=y.cnt,_=1/(m+v);l&&(d.ac=_*(m*d.ac+v*y.ac)),d.rc=_*(m*d.rc+v*y.rc),d.gc=_*(m*d.gc+v*y.gc),d.bc=_*(m*d.bc+v*y.bc),d.cnt+=y.cnt,d.mtm=++u,f[y.bk].fw=y.fw,f[y.fw].bk=y.bk,y.mtm=h}let M=[];var V=0;for(u=0;;++V){let L=R(Math.round(f[u].rc),0,255),C=R(Math.round(f[u].gc),0,255),Y=R(Math.round(f[u].bc),0,255),E=255;if(l){if(E=R(Math.round(f[u].ac),0,255),c){let st=typeof c=="number"?c:127;E=E<=st?0:255}r&&E<=i&&(L=C=Y=o,E=0)}let K=l?[L,C,Y,E]:[L,C,Y];if(xt(M,K)||M.push(K),(u=f[u].fw)==0)break}return M}function xt(t,e){for(let s=0;s<t.length;s++){let n=t[s],r=n[0]===e[0]&&n[1]===e[1]&&n[2]===e[2],o=n.length>=4&&e.length>=4?n[3]===e[3]:!0;if(r&&o)return!0}return!1}function U(t,e){var s=0,n;for(n=0;n<t.length;n++){let r=t[n]-e[n];s+=r*r}return s}function P(t,e){return e>1?Math.round(t/e)*e:t}function et(t,{roundRGB:e=5,roundAlpha:s=10,oneBitAlpha:n=null}={}){let r=new Uint32Array(t.buffer);for(let o=0;o<r.length;o++){let i=r[o],c=i>>24&255,x=i>>16&255,a=i>>8&255,l=i&255;if(c=P(c,s),n){let f=typeof n=="number"?n:127;c=c<=f?0:255}l=P(l,e),a=P(a,e),x=P(x,e),r[o]=c<<24|x<<16|a<<8|l<<0}}function nt(t,e,s="rgb565"){if(!t||!t.buffer)throw new Error("quantize() expected RGBA Uint8Array data");if(!(t instanceof Uint8Array)&&!(t instanceof Uint8ClampedArray))throw new Error("quantize() expected RGBA Uint8Array data");if(e.length>256)throw new Error("applyPalette() only works with 256 colors or less");let n=new Uint32Array(t.buffer),r=n.length,o=s==="rgb444"?4096:65536,i=new Uint8Array(r),c=new Array(o),x=s==="rgba4444";if(s==="rgba4444")for(let a=0;a<r;a++){let l=n[a],f=l>>24&255,g=l>>16&255,h=l>>8&255,b=l&255,w=G(b,h,g,f),_=w in c?c[w]:c[w]=gt(b,h,g,f,e);i[a]=_}else{let a=s==="rgb444"?j:D;for(let l=0;l<r;l++){let f=n[l],g=f>>16&255,h=f>>8&255,b=f&255,w=a(b,h,g),_=w in c?c[w]:c[w]=bt(b,h,g,e);i[l]=_}}return i}function gt(t,e,s,n,r){let o=0,i=1e100;for(let c=0;c<r.length;c++){let x=r[c],a=x[3],l=q(a-n);if(l>i)continue;let f=x[0];if(l+=q(f-t),l>i)continue;let g=x[1];if(l+=q(g-e),l>i)continue;let h=x[2];l+=q(h-s),!(l>i)&&(i=l,o=c)}return o}function bt(t,e,s,n){let r=0,o=1e100;for(let i=0;i<n.length;i++){let c=n[i],x=c[0],a=q(x-t);if(a>o)continue;let l=c[1];if(a+=q(l-e),a>o)continue;let f=c[2];a+=q(f-s),!(a>o)&&(o=a,r=i)}return r}function rt(t,e,s=5){if(!t.length||!e.length)return;let n=t.map(i=>i.slice(0,3)),r=s*s,o=t[0].length;for(let i=0;i<e.length;i++){let c=e[i];c.length<o?c=[c[0],c[1],c[2],255]:c.length>o?c=c.slice(0,3):c=c.slice();let x=N(n,c.slice(0,3),U),a=x[0],l=x[1];l>0&&l<=r&&(t[a]=c)}}function q(t){return t*t}function W(t,e,s=U){let n=Infinity,r=-1;for(let o=0;o<t.length;o++){let i=t[o],c=s(e,i);c<n&&(n=c,r=o)}return r}function N(t,e,s=U){let n=Infinity,r=-1;for(let o=0;o<t.length;o++){let i=t[o],c=s(e,i);c<n&&(n=c,r=o)}return[r,n]}function ot(t,e,s=U){return t[W(t,e,s)]}function ct(t={}){let{initialCapacity:e=4096,auto:s=!0}=t,n=F(e),r=5003,o=new Uint8Array(256),i=new Int32Array(r),c=new Int32Array(r),x=!1;return{reset(){n.reset(),x=!1},finish(){n.writeByte(X.trailer)},bytes(){return n.bytes()},bytesView(){return n.bytesView()},get buffer(){return n.buffer},get stream(){return n},writeHeader:a,writeFrame(l,f,g,h={}){let{transparent:b=!1,transparentIndex:w=0,delay:_=0,palette:u=null,repeat:k=0,colorDepth:B=8,dispose:p=-1}=h,A=!1;if(s?x||(A=!0,a(),x=!0):A=Boolean(h.first),f=Math.max(0,Math.floor(f)),g=Math.max(0,Math.floor(g)),A){if(!u)throw new Error("First frame must include a { palette } option");pt(n,f,g,u,B),it(n,u),k>=0&&dt(n,k)}let z=Math.round(_/10);wt(n,p,z,b,w);let d=Boolean(u)&&!A;ht(n,f,g,d?u:null),d&&it(n,u),yt(n,l,f,g,B,o,i,c)}};function a(){ft(n,"GIF89a")}}function wt(t,e,s,n,r){t.writeByte(33),t.writeByte(249),t.writeByte(4),r<0&&(r=0,n=!1);var o,i;n?(o=1,i=2):(o=0,i=0),e>=0&&(i=e&7),i<<=2;let c=0;t.writeByte(0|i|c|o),S(t,s),t.writeByte(r||0),t.writeByte(0)}function pt(t,e,s,n,r=8){let o=1,i=0,c=Z(n.length)-1,x=o<<7|r-1<<4|i<<3|c,a=0,l=0;S(t,e),S(t,s),t.writeBytes([x,a,l])}function dt(t,e){t.writeByte(33),t.writeByte(255),t.writeByte(11),ft(t,"NETSCAPE2.0"),t.writeByte(3),t.writeByte(1),S(t,e),t.writeByte(0)}function it(t,e){let s=1<<Z(e.length);for(let n=0;n<s;n++){let r=[0,0,0];n<e.length&&(r=e[n]),t.writeByte(r[0]),t.writeByte(r[1]),t.writeByte(r[2])}}function ht(t,e,s,n){if(t.writeByte(44),S(t,0),S(t,0),S(t,e),S(t,s),n){let r=0,o=0,i=Z(n.length)-1;t.writeByte(128|r|o|0|i)}else t.writeByte(0)}function yt(t,e,s,n,r=8,o,i,c){$(s,n,e,r,t,o,i,c)}function S(t,e){t.writeByte(e&255),t.writeByte(e>>8&255)}function ft(t,e){for(var s=0;s<e.length;s++)t.writeByte(e.charCodeAt(s))}function Z(t){return Math.max(Math.ceil(Math.log2(t)),1)}var Bt=ct;window.gifenc={GIFEncoder:ct,quantize:H,applyPalette:nt};
+
+})();
+</script>
+
+<script>
+"use strict";
+// =====================================================================
+//  SETTINGS. Paste your Apps Script web app URL (ends in /exec) here.
+// =====================================================================
+const SCRIPT_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
+
+const N_TRIALS = 30;              // trials per block (half signal, half noise)
+const CONDITIONS = [              // the 4 blocks; order is shuffled per participant
+  { coherence: 0.60, duration: 1000 },
+  { coherence: 0.60, duration: 300 },
+  { coherence: 0.20, duration: 1000 },
+  { coherence: 0.20, duration: 300 },
+];
+const PRACTICE = { coherence: 0.60, duration: 1000, nTrials: 6 };
+
+const FIXATION_MS = 1000;         // + before each trial
+const RESPONSE_MS = 1500;         // ? window after the dots
+const FEEDBACK_MS = 900;          // practice only
+
+const DOTS = {
+  count: 100,                     // dots in the aperture
+  radius: 170,                    // aperture radius, CSS pixels
+  dotRadius: 2.2,
+  speed: 180,                     // pixels per second
+  lifetime: 400,                  // ms before a dot respawns somewhere new
+};
+
+// =====================================================================
+//  Helpers
+// =====================================================================
+const $ = (id) => document.getElementById(id);
+const show = (id) => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0, 0); };
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const condLabel = (c) => `${Math.round(c.coherence * 100)}% coherence · ${(c.duration / 1000).toFixed(c.duration < 1000 ? 1 : 0)} s`;
+const fmt = (x, d = 3) => (x == null || !isFinite(x)) ? '—' : (Math.abs(x) < 0.5 * 10 ** -d ? 0 : x).toFixed(d);
+
+// ---------- Normal distribution math ----------
+function normPdf(x, mu = 0) { const z = x - mu; return Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI); }
+function erf(x) { // Abramowitz & Stegun 7.1.26
+  const s = Math.sign(x); x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return s * y;
+}
+function normCdf(x) { return 0.5 * (1 + erf(x / Math.SQRT2)); }
+function zinv(p) { // Acklam's inverse normal CDF
+  if (p <= 0) return -Infinity; if (p >= 1) return Infinity;
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.3577518672690, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const pl = 0.02425; let q, r;
+  if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p > 1 - pl) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  q = p - 0.5; r = q * q;
+  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+}
+
+// SDT stats from counts. Like d′etectable, 1 is added to each cell before
+// computing the rates used for z-scores, so rates of 0 or 1 never give infinite z.
+function sdtStats(h, m, fa, cr, nr = 0) {
+  const hrC = (h + 1) / (h + m + 2), farC = (fa + 1) / (fa + cr + 2);
+  const zH = zinv(hrC), zF = zinv(farC);
+  const answered = h + m + fa + cr;
+  return {
+    h, m, fa, cr, nr,
+    hr: (h + m) ? h / (h + m) : null,
+    far: (fa + cr) ? fa / (fa + cr) : null,
+    acc: answered ? (h + cr) / answered : null,
+    hrC, farC, zH, zF, d: zH - zF, c: -0.5 * (zH + zF),
+  };
+}
+function outcomeOf(signal, response) {
+  if (response === 'none') return 'No response';
+  if (signal === 'present') return response === 'present' ? 'Hit' : 'Miss';
+  return response === 'present' ? 'False Alarm' : 'Correct Rejection';
+}
+
+// =====================================================================
+//  Random-dot kinematogram
+// =====================================================================
+class RDK {
+  constructor(canvas, opts = {}) {
+    this.o = Object.assign({}, DOTS, opts);
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.size = this.o.radius * 2 + 8;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = this.size * dpr; canvas.height = this.size * dpr;
+    canvas.style.width = this.size + 'px'; canvas.style.height = this.size + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.dots = [];
+  }
+  randPos() { const a = Math.random() * 2 * Math.PI, r = this.o.radius * Math.sqrt(Math.random()); return [r * Math.cos(a), r * Math.sin(a)]; }
+  start(coherence, signalPresent, direction, now) {
+    const nCoh = signalPresent ? Math.round(this.o.count * coherence) : 0;
+    this.dir = direction; this.nCoh = nCoh; this.last = now;
+    this.dots = [];
+    for (let i = 0; i < this.o.count; i++) {
+      const [x, y] = this.randPos();
+      const coherent = i < nCoh;
+      this.dots.push({ x, y, coherent, dir: coherent ? direction : Math.random() * 360,
+        birth: now - Math.random() * this.o.lifetime });
+    }
+  }
+  step(now) {
+    const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
+    const R = this.o.radius;
+    for (const d of this.dots) {
+      if (now - d.birth > this.o.lifetime) { // respawn
+        d.birth += this.o.lifetime * Math.max(1, Math.floor((now - d.birth) / this.o.lifetime));
+        [d.x, d.y] = this.randPos();
+        d.dir = d.coherent ? this.dir : Math.random() * 360;
+        continue;
+      }
+      const rad = d.dir * Math.PI / 180;
+      d.x += this.o.speed * dt * Math.cos(rad);
+      d.y -= this.o.speed * dt * Math.sin(rad);  // screen y points down; 90° = up
+      if (d.x * d.x + d.y * d.y > R * R) { d.x = -d.x; d.y = -d.y; } // wrap to the opposite side
+    }
+  }
+  clear(mode) { // mode: 'dots' | 'fixation' | 'query' | 'blank' | text
+    const ctx = this.ctx, s = this.size, c = s / 2, R = this.o.radius;
+    ctx.clearRect(0, 0, s, s);
+    ctx.fillStyle = '#3b3b3b'; ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = '#777'; ctx.lineWidth = 2; ctx.stroke();
+    if (mode === 'dots') {
+      ctx.fillStyle = '#fff';
+      for (const d of this.dots) { ctx.beginPath(); ctx.arc(c + d.x, c + d.y, this.o.dotRadius, 0, 2 * Math.PI); ctx.fill(); }
+    } else if (mode === 'fixation') {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(c - 12, c); ctx.lineTo(c + 12, c); ctx.moveTo(c, c - 12); ctx.lineTo(c, c + 12); ctx.stroke();
+    } else if (mode === 'query' || (mode && mode.length <= 2)) {
+      ctx.fillStyle = '#fff'; ctx.font = '700 44px "Source Sans 3", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(mode === 'query' ? '?' : mode, c, c + 2);
+    }
+  }
+}
+
+// Looping example animations on the instructions page
+function startDemos() {
+  const mk = (id, sig) => {
+    const r = new RDK($(id), { radius: 110, count: 60, speed: 120 });
+    let t0 = performance.now(), dir = Math.random() * 360;
+    r.start(0.6, sig, dir, t0);
+    const loop = (now) => {
+      if (!$('instructions').classList.contains('on')) return;
+      if (now - t0 > 2500) { t0 = now; dir = Math.random() * 360; r.start(0.6, sig, dir, now); }
+      r.step(now); r.clear('dots'); requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  };
+  mk('demoSignal', true); mk('demoNoise', false);
+}
+
+// =====================================================================
+//  Keyboard
+// =====================================================================
+let keyHandler = null;
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (['p', 'a', ' '].includes(k) && document.activeElement && document.activeElement.tagName !== 'INPUT') e.preventDefault();
+  if (keyHandler) keyHandler(k, performance.now());
+});
+function flashKey(k) { const el = $(k === 'p' ? 'keyP' : 'keyA'); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 180); }
+function waitForSpace() { return new Promise(res => { keyHandler = (k) => { if (k === ' ') { keyHandler = null; res(); } }; }); }
+
+// =====================================================================
+//  One trial
+// =====================================================================
+function runTrial(rdk, cond, signal) {
+  return new Promise((resolve) => {
+    const direction = Math.random() * 360;
+    let phase = 'fixation', phaseStart = performance.now(), stimOnset = null;
+    let response = null, rt = null;
+    keyHandler = (k, t) => {
+      if ((k !== 'p' && k !== 'a') || response || phase === 'fixation') return;
+      response = k === 'p' ? 'present' : 'absent'; rt = t - stimOnset; flashKey(k);
+    };
+    const finish = () => { keyHandler = null; rdk.clear('blank');
+      resolve({ signal, response: response || 'none', rt: rt == null ? null : Math.round(rt), direction: Math.round(direction), nCoherent: rdk.nCoh }); };
+    const frame = (now) => {
+      const el = now - phaseStart;
+      if (phase === 'fixation') {
+        if (el >= FIXATION_MS) { phase = 'stim'; phaseStart = now; stimOnset = now; rdk.start(cond.coherence, signal === 'present', direction, now); }
+        else { rdk.clear('fixation'); return requestAnimationFrame(frame); }
+      }
+      if (phase === 'stim') {
+        if (now - phaseStart >= cond.duration) {
+          if (response) return finish();         // answered during the dots: go straight on
+          phase = 'query'; phaseStart = now;
+        } else { rdk.step(now); rdk.clear('dots'); return requestAnimationFrame(frame); }
+      }
+      if (phase === 'query') {
+        if (response) { rdk.clear(response === 'present' ? 'P' : 'A'); return setTimeout(finish, 200); }
+        if (now - phaseStart >= RESPONSE_MS) return finish();
+        rdk.clear('query'); return requestAnimationFrame(frame);
+      }
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+// =====================================================================
+//  Session
+// =====================================================================
+const session = {
+  id: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '-' + Math.random().toString(36).slice(2, 6),
+  participant: '', started: null, order: [], blocks: [],
+};
+let stageRdk = null;
+
+async function runPractice() {
+  show('task');
+  stageRdk = stageRdk || new RDK($('stage'));
+  const signals = shuffle([...Array(PRACTICE.nTrials)].map((_, i) => i % 2 ? 'present' : 'absent'));
+  for (let i = 0; i < signals.length; i++) {
+    $('taskInfo').textContent = `Practice · trial ${i + 1} of ${signals.length}`;
+    $('practiceFb').textContent = '';
+    const t = await runTrial(stageRdk, PRACTICE, signals[i]);
+    const out = outcomeOf(t.signal, t.response);
+    const msg = {
+      'Hit': ['✓ Correct: some dots were moving together.', '#9fe09a'],
+      'Correct Rejection': ['✓ Correct: all the dots were random.', '#9fe09a'],
+      'Miss': ['✗ Some dots were moving together that time.', '#ffb38a'],
+      'False Alarm': ['✗ All the dots were random that time.', '#ffb38a'],
+      'No response': ['Too slow. Press P or A before the ? disappears.', '#ffd76a'],
+    }[out];
+    $('practiceFb').textContent = msg[0]; $('practiceFb').style.color = msg[1];
+    await sleep(FEEDBACK_MS + 400);
+  }
+  $('practiceFb').textContent = '';
+}
+
+async function runBlock(cond, idx) {
+  const signals = shuffle([...Array(N_TRIALS)].map((_, i) => i < N_TRIALS / 2 ? 'present' : 'absent'));
+  const trials = [];
+  show('task');
+  for (let i = 0; i < N_TRIALS; i++) {
+    $('taskInfo').textContent = `Block ${idx + 1} of ${CONDITIONS.length} · trial ${i + 1} of ${N_TRIALS}`;
+    const t = await runTrial(stageRdk, cond, signals[i]);
+    t.trial = i + 1; t.outcome = outcomeOf(t.signal, t.response);
+    trials.push(t);
+  }
+  return trials;
+}
+
+async function runSession() {
+  session.started = new Date().toISOString();
+  await runPractice();
+  $('betweenTitle').textContent = 'Practice done!';
+  $('betweenBody').innerHTML = `<p>Now the real task: <b>${CONDITIONS.length} blocks of ${N_TRIALS} trials</b>, about 7 minutes in all.
+    Blocks differ in difficulty: the dots may be shown for 1 second or only 0.3 seconds, and more or fewer of them may move together.
+    <b>No feedback from here on.</b> You'll see everything at the end.</p>`;
+  show('between'); await waitForSpace();
+
+  session.order = shuffle(CONDITIONS);
+  for (let b = 0; b < session.order.length; b++) {
+    const cond = session.order[b];
+    $('betweenTitle').textContent = `Block ${b + 1} of ${session.order.length}`;
+    $('betweenBody').innerHTML = `<p style="font-size:1.2rem">This block: <b>${Math.round(cond.coherence * 100)}%</b> of the dots move together on signal trials,
+      and the dots are shown for <b>${cond.duration / 1000} s</b>.</p>` + (b ? '<p class="muted">Take a short break if you need one.</p>' : '');
+    show('between'); await waitForSpace();
+    const trials = await runBlock(cond, b);
+    session.blocks.push({ num: b + 1, ...cond, trials });
+  }
+  buildReport();
+}
+
+// =====================================================================
+//  Report: the time-lapse frame (drawn on canvas, reused for the GIF)
+// =====================================================================
+const FW = 640, FH = 1085;
+const COL = {
+  hit: '#b2d8a8', miss: '#f4c08a', fa: '#a3c0db', cr: '#e4908c', hr: '#fbfb9c', far: '#c6a6cd', acc: '#d0d0d0',
+  noise: '#e4908c', signal: '#9fcd8e', isoD: '#e66fb3', isoC: '#9a5a33', ink: '#222', muted: '#777', plot: '#e6e6e6',
+};
+const OUT_COL = { 'Hit': COL.hit, 'Miss': COL.miss, 'False Alarm': COL.fa, 'Correct Rejection': COL.cr, 'No response': '#dddddd' };
+
+function blockFrames(block) { // stats after 0..n trials
+  const f = []; let h = 0, m = 0, fa = 0, cr = 0, nr = 0;
+  f.push(sdtStats(0, 0, 0, 0, 0));
+  for (const t of block.trials) {
+    if (t.outcome === 'Hit') h++; else if (t.outcome === 'Miss') m++; else if (t.outcome === 'False Alarm') fa++;
+    else if (t.outcome === 'Correct Rejection') cr++; else nr++;
+    f.push(sdtStats(h, m, fa, cr, nr));
+  }
+  return f;
+}
+
+function txt(ctx, s, x, y, { size = 16, weight = 400, color = COL.ink, align = 'left', base = 'alphabetic', italic = false } = {}) {
+  ctx.font = `${italic ? 'italic ' : ''}${weight} ${size}px "Source Sans 3", "Source Sans Pro", sans-serif`;
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillText(s, x, y);
+}
+function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function drawFrame(ctx, block, frames, k, scale = 1) {
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, FW, FH);
+  const s = frames[k], n = block.trials.length, last = k > 0 ? block.trials[k - 1] : null;
+
+  // ---- header
+  txt(ctx, `Block ${block.num}: ${condLabel(block)}`, 24, 38, { size: 22, weight: 700 });
+  txt(ctx, `${k} of ${n} trials`, FW - 24, 38, { size: 17, color: COL.muted, align: 'right' });
+
+  // ---- popup for the latest response
+  const py = 56, ph = 40;
+  if (last) {
+    const label = last.outcome === 'No response'
+      ? `Trial ${k}: signal ${last.signal} · no response`
+      : `Trial ${k}: signal ${last.signal} · you said “${last.response === 'present' ? 'Present' : 'Absent'}” → ${last.outcome.toUpperCase()}`;
+    ctx.font = '600 17px "Source Sans 3", sans-serif';
+    const w = Math.min(FW - 40, ctx.measureText(label).width + 40);
+    ctx.fillStyle = OUT_COL[last.outcome]; rrect(ctx, (FW - w) / 2, py, w, ph, 20); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
+    txt(ctx, label, FW / 2, py + ph / 2 + 1, { size: 17, weight: 600, align: 'center', base: 'middle' });
+  } else {
+    txt(ctx, 'Before any trials: hit rate = false alarm rate = 0.5, so d′ = 0 and c = 0', FW / 2, py + ph / 2, { size: 16, color: COL.muted, align: 'center', base: 'middle' });
+  }
+
+  // ---- 2x2 table
+  const tx = 150, ty = 150, cw = 150, ch = 70, rx = tx + 2 * cw + 14, rw = 150;
+  txt(ctx, 'Response', tx + cw, 124, { size: 19, weight: 700, align: 'center' });
+  txt(ctx, '‘Present’', tx + cw / 2, 145, { size: 17, weight: 600, align: 'center' });
+  txt(ctx, '‘Absent’', tx + cw * 1.5, 145, { size: 17, weight: 600, align: 'center' });
+  txt(ctx, 'Signal', 26, ty + ch, { size: 19, weight: 700, base: 'middle' });
+  txt(ctx, 'Present', tx - 10, ty + ch / 2, { size: 17, weight: 600, align: 'right', base: 'middle' });
+  txt(ctx, 'Absent', tx - 10, ty + ch * 1.5, { size: 17, weight: 600, align: 'right', base: 'middle' });
+  const cells = [
+    ['Hits', s.h, COL.hit, 0, 0, 'Hit'], ['Misses', s.m, COL.miss, 1, 0, 'Miss'],
+    ['False Alarms', s.fa, COL.fa, 0, 1, 'False Alarm'], ['Correct Rejections', s.cr, COL.cr, 1, 1, 'Correct Rejection'],
+  ];
+  for (const [name, v, col, cx, cy, key] of cells) {
+    const x = tx + cx * cw, y = ty + cy * ch;
+    ctx.fillStyle = col; ctx.fillRect(x, y, cw, ch);
+    txt(ctx, name, x + cw / 2, y + 20, { size: 15, align: 'center', color: '#333' });
+    txt(ctx, String(v), x + cw / 2, y + 52, { size: 26, align: 'center' });
+    if (last && last.outcome === key) { ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.strokeRect(x + 3, y + 3, cw - 6, ch - 6); }
+  }
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 2.5; ctx.strokeRect(tx, ty, cw * 2, ch * 2);
+  const rates = [['Hit Rate', s.hr, COL.hr, 0], ['False Alarm Rate', s.far, COL.far, 1], ['Accuracy', s.acc, COL.acc, 2]];
+  for (const [name, v, col, i] of rates) {
+    const y = ty + i * ch;
+    ctx.fillStyle = col; ctx.fillRect(rx, y, rw, ch);
+    txt(ctx, name, rx + rw / 2, y + 20, { size: 15, align: 'center', color: '#333' });
+    txt(ctx, fmt(v), rx + rw / 2, y + 52, { size: 24, align: 'center' });
+  }
+  if (s.nr) txt(ctx, `+ ${s.nr} trial${s.nr > 1 ? 's' : ''} with no response (not counted)`, tx, ty + ch * 2 + 26, { size: 14, color: COL.muted });
+
+  // ---- distributions (SDT model)
+  const dx0 = 70, dx1 = FW - 40, dy0 = 420, dy1 = 620, xmin = -4, xmax = 4, ymax = 0.5;
+  const X = (v) => dx0 + (v - xmin) / (xmax - xmin) * (dx1 - dx0), Y = (v) => dy1 - v / ymax * (dy1 - dy0);
+  txt(ctx, 'Signal detection model', 24, 392, { size: 19, weight: 700 });
+  ctx.fillStyle = COL.plot; ctx.fillRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+  const muN = -s.d / 2, muS = s.d / 2, cx = Math.max(xmin, Math.min(xmax, s.c));
+  const area = (mu, from, to, col) => {
+    ctx.beginPath(); ctx.moveTo(X(from), Y(0));
+    for (let v = from; v <= to + 1e-9; v += 0.02) ctx.lineTo(X(v), Y(normPdf(v, mu)));
+    ctx.lineTo(X(to), Y(0)); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  };
+  ctx.globalAlpha = 0.6;
+  area(muN, xmin, cx, COL.cr); area(muN, cx, xmax, COL.fa);
+  area(muS, xmin, cx, COL.miss); area(muS, cx, xmax, COL.hit);
+  ctx.globalAlpha = 1;
+  for (const mu of [muN, muS]) {
+    ctx.beginPath(); for (let v = xmin; v <= xmax; v += 0.02) { const px = X(v), py2 = Y(normPdf(v, mu)); v === xmin ? ctx.moveTo(px, py2) : ctx.lineTo(px, py2); }
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  // curve labels sit inside each curve, pushed apart so they never overlap
+  const sgn = s.d >= 0 ? 1 : -1;
+  txt(ctx, 'noise trials', X(muN) - sgn * 6, Y(0.3), { size: 14, weight: 700, color: '#7a2622', align: sgn > 0 ? 'right' : 'left' });
+  txt(ctx, 'signal trials', X(muS) + sgn * 6, Y(0.3), { size: 14, weight: 700, color: '#2f5e22', align: sgn > 0 ? 'left' : 'right' });
+  // threshold
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(cx), dy1); ctx.lineTo(X(cx), dy0 - 18); ctx.stroke();
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(X(cx), dy0 - 22, 7, 0, 2 * Math.PI); ctx.fill();
+  txt(ctx, `“Absent” ←`, X(cx) - 10, dy0 + 18, { size: 13, color: '#333', align: 'right' });
+  txt(ctx, `→ “Present”`, X(cx) + 10, dy0 + 18, { size: 13, color: '#333' });
+  // d′ bracket
+  const by = dy0 + 40;
+  ctx.strokeStyle = COL.isoD; ctx.lineWidth = 3; ctx.beginPath();
+  ctx.moveTo(X(muN), by - 7); ctx.lineTo(X(muN), by + 7); ctx.moveTo(X(muN), by); ctx.lineTo(X(muS), by); ctx.moveTo(X(muS), by - 7); ctx.lineTo(X(muS), by + 7); ctx.stroke();
+  txt(ctx, `d′ = ${fmt(s.d)}`, Math.max(X(muS), X(muN)) + 10, by + 5, { size: 16, weight: 700, color: '#b23c86' });
+  txt(ctx, `c = ${fmt(s.c)}`, X(cx) + 12, dy0 - 16, { size: 16, weight: 700, color: COL.isoC });
+  // axes
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1; ctx.strokeRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+  for (let v = xmin; v <= xmax; v++) { ctx.beginPath(); ctx.moveTo(X(v), dy1); ctx.lineTo(X(v), dy1 + 5); ctx.stroke(); txt(ctx, String(v), X(v), dy1 + 20, { size: 13, align: 'center', color: '#444' }); }
+  txt(ctx, 'Evidence (how much motion it seemed like there was)', (dx0 + dx1) / 2, dy1 + 42, { size: 15, weight: 600, align: 'center' });
+  // legend
+  const lg = [['Hit', COL.hit], ['Miss', COL.miss], ['False alarm', COL.fa], ['Correct rejection', COL.cr]];
+  let lx = dx0; const ly = dy1 + 64;
+  for (const [nm, col] of lg) { ctx.fillStyle = col; ctx.fillRect(lx, ly - 11, 14, 14); txt(ctx, nm, lx + 19, ly, { size: 13, color: '#333' }); ctx.font = '13px "Source Sans 3", sans-serif'; lx += 19 + ctx.measureText(nm).width + 22; }
+
+  // ---- ROC space
+  const rs = 300, rx0 = 90, ry0 = 715, R = (v) => rx0 + v * rs, RY = (v) => ry0 + rs - v * rs;
+  txt(ctx, 'ROC space', 24, 704, { size: 19, weight: 700 });
+  ctx.fillStyle = COL.plot; ctx.fillRect(rx0, ry0, rs, rs);
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(R(0), RY(0)); ctx.lineTo(R(1), RY(1)); ctx.stroke(); ctx.setLineDash([]);
+  const curve = (fn, col) => { ctx.beginPath(); let first = true;
+    for (let i = 0; i <= 400; i++) { const f = i / 400; const h = f === 0 ? fn(1e-6) : f === 1 ? fn(1 - 1e-6) : fn(f); const xx = R(f), yy = RY(h); first ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy); first = false; }
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke(); };
+  curve(f => normCdf(zinv(f) + s.d), COL.isoD);
+  curve(f => normCdf(-2 * s.c - zinv(f)), COL.isoC);
+  // trail
+  ctx.strokeStyle = 'rgba(60,60,60,.35)'; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (let i = 0; i <= k; i++) { const p = frames[i]; i ? ctx.lineTo(R(p.farC), RY(p.hrC)) : ctx.moveTo(R(p.farC), RY(p.hrC)); }
+  ctx.stroke();
+  for (let i = 0; i < k; i++) { const p = frames[i]; ctx.fillStyle = 'rgba(60,60,60,.35)'; ctx.beginPath(); ctx.arc(R(p.farC), RY(p.hrC), 3, 0, 2 * Math.PI); ctx.fill(); }
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(R(s.farC), RY(s.hrC), 9, 0, 2 * Math.PI); ctx.fill();
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1; ctx.strokeRect(rx0, ry0, rs, rs);
+  for (let v = 0; v <= 10; v += 2) {
+    txt(ctx, (v / 10).toFixed(1), R(v / 10), ry0 + rs + 18, { size: 12, align: 'center', color: '#444' });
+    txt(ctx, (v / 10).toFixed(1), rx0 - 8, RY(v / 10) + 4, { size: 12, align: 'right', color: '#444' });
+  }
+  txt(ctx, 'False Alarm Rate', R(0.5), ry0 + rs + 40, { size: 15, weight: 600, align: 'center' });
+  ctx.save(); ctx.translate(rx0 - 42, RY(0.5)); ctx.rotate(-Math.PI / 2); txt(ctx, 'Hit Rate', 0, 0, { size: 15, weight: 600, align: 'center' }); ctx.restore();
+  // ROC legend
+  const gx = rx0 + rs + 30; let gy = ry0 + 20;
+  const legendLine = (col, dash, a, b) => {
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(gx, gy - 5); ctx.lineTo(gx + 26, gy - 5); ctx.stroke(); ctx.setLineDash([]);
+    txt(ctx, a, gx + 34, gy, { size: 15, weight: 700 }); txt(ctx, b, gx + 34, gy + 19, { size: 13, color: COL.muted }); gy += 56;
+  };
+  legendLine(COL.isoD, [], `d′ = ${fmt(s.d, 2)}`, 'every point with your sensitivity');
+  legendLine(COL.isoC, [], `c = ${fmt(s.c, 2)}`, 'every point with your bias');
+  legendLine('#555', [5, 4], 'd′ = 0', 'pure guessing');
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(gx + 13, gy - 6, 7, 0, 2 * Math.PI); ctx.fill();
+  txt(ctx, 'You, so far', gx + 34, gy, { size: 15, weight: 700 }); txt(ctx, 'faint dots: earlier trials', gx + 34, gy + 19, { size: 13, color: COL.muted });
+  gy += 50;
+  txt(ctx, `plotted with corrected rates`, gx, gy, { size: 12, color: COL.muted });
+  txt(ctx, `HR′ = ${fmt(s.hrC)},  FAR′ = ${fmt(s.farC)}`, gx, gy + 17, { size: 12, color: COL.muted });
+}
+
+// =====================================================================
+//  Report page
+// =====================================================================
+const gifStore = window.gifStore = {}; // block num -> Blob
+
+function mathHtml(s, block) {
+  const N = s.h + s.m + s.fa + s.cr;
+  const lean = Math.abs(s.c) < 0.1 ? 'close to 0, so you had almost no lean toward either answer'
+    : s.c < 0 ? 'negative, so you leaned toward saying “Present” (a <b>liberal</b> criterion)'
+    : 'positive, so you leaned toward saying “Absent” (a <b>conservative</b> criterion)';
+  return `
+  <div class="math">
+    <h3 style="margin-top:0">The math, with your numbers</h3>
+    <div class="step"><b>1. Count each outcome.</b>
+      <div class="eq"><span class="tag t-h">Hits = ${s.h}</span> <span class="tag t-m">Misses = ${s.m}</span>
+      <span class="tag t-fa">False alarms = ${s.fa}</span> <span class="tag t-cr">Correct rejections = ${s.cr}</span>
+      ${s.nr ? `<span class="muted small">(${s.nr} no-response trial${s.nr > 1 ? 's' : ''} left out)</span>` : ''}</div></div>
+    <div class="step"><b>2. Turn counts into rates.</b>
+      <div class="eq"><span class="tag t-hr">Hit rate</span> = <span class="frac"><span>Hits</span><span>Hits + Misses</span></span> =
+        <span class="frac"><span>${s.h}</span><span>${s.h} + ${s.m}</span></span> = <span class="v">${fmt(s.hr)}</span></div>
+      <div class="eq"><span class="tag t-far">False alarm rate</span> = <span class="frac"><span>False alarms</span><span>False alarms + Correct rejections</span></span> =
+        <span class="frac"><span>${s.fa}</span><span>${s.fa} + ${s.cr}</span></span> = <span class="v">${fmt(s.far)}</span></div>
+      <div class="eq">Accuracy = <span class="frac"><span>Hits + Correct rejections</span><span>all answered trials</span></span> =
+        <span class="frac"><span>${s.h} + ${s.cr}</span><span>${N}</span></span> = <span class="v">${fmt(s.acc)}</span></div></div>
+    <div class="step"><b>3. Correct the rates.</b> A rate of exactly 0 or 1 would give an infinite z-score, so (as d′etectable does) we add 1 to every cell first:
+      <div class="eq">HR′ = <span class="frac"><span>Hits + 1</span><span>Hits + Misses + 2</span></span> =
+        <span class="frac"><span>${s.h + 1}</span><span>${s.h + s.m + 2}</span></span> = <span class="v">${fmt(s.hrC)}</span>
+        &nbsp;&nbsp;&nbsp; FAR′ = <span class="frac"><span>FA + 1</span><span>FA + CR + 2</span></span> =
+        <span class="frac"><span>${s.fa + 1}</span><span>${s.fa + s.cr + 2}</span></span> = <span class="v">${fmt(s.farC)}</span></div></div>
+    <div class="step"><b>4. Convert to z-scores.</b> z(p) asks how many standard deviations above the middle of a normal curve you have to go to leave a proportion p of it to your left.
+      <div class="eq">z(HR′) = z(${fmt(s.hrC)}) = <span class="v">${fmt(s.zH)}</span> &nbsp;&nbsp;&nbsp; z(FAR′) = z(${fmt(s.farC)}) = <span class="v">${fmt(s.zF)}</span></div></div>
+    <div class="step"><b>5. Sensitivity, d′</b>: how far apart the signal and noise distributions are.
+      <div class="eq">d′ = z(HR′) − z(FAR′) = ${fmt(s.zH)} − (${fmt(s.zF)}) = <span class="v">${fmt(s.d)}</span></div></div>
+    <div class="step"><b>6. Criterion, c</b>: where your yes/no line sits, measured from the point midway between the two distributions.
+      <div class="eq">c = −½ × [z(HR′) + z(FAR′)] = −½ × [${fmt(s.zH)} + (${fmt(s.zF)})] = <span class="v">${fmt(s.c)}</span></div>
+      <div class="eq muted small">Your c is ${lean}.</div></div>
+  </div>`;
+}
+
+function buildReport() {
+  show('report');
+  $('reportWho').textContent = `${session.participant} · ${new Date().toLocaleString()}`;
+  const finals = session.blocks.map(b => blockFrames(b));
+
+  // summary table
+  let html = `<tr><th>Block</th><th>Condition</th><th>Hits</th><th>Misses</th><th>FAs</th><th>CRs</th><th>Accuracy</th><th>d′</th><th>c</th></tr>`;
+  session.blocks.forEach((b, i) => { const s = finals[i][finals[i].length - 1];
+    html += `<tr><td>${b.num}</td><td>${condLabel(b)}</td><td>${s.h}</td><td>${s.m}</td><td>${s.fa}</td><td>${s.cr}</td><td>${fmt(s.acc, 2)}</td><td><b>${fmt(s.d, 2)}</b></td><td><b>${fmt(s.c, 2)}</b></td></tr>`; });
+  $('summaryTable').innerHTML = html;
+
+  // one card per block
+  const host = $('blockReports'); host.innerHTML = '';
+  session.blocks.forEach((b, i) => {
+    const frames = finals[i], n = b.trials.length;
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<h2 style="margin-top:0">Block ${b.num}: ${condLabel(b)}</h2>
+      <p class="small muted">Press play to watch your table, the model, and ROC space update after each answer.</p>
+      <canvas class="lapse"></canvas>
+      <div class="controls">
+        <button class="play">▶ Play</button>
+        <input type="range" min="0" max="${n}" value="${n}" aria-label="Trial">
+        <select aria-label="Speed"><option value="900">Slow</option><option value="450" selected>Normal</option><option value="180">Fast</option></select>
+      </div>
+      ${mathHtml(frames[n], b)}
+      <div class="dlrow"><button class="secondary dlgif" disabled>Making GIF…</button></div>`;
+    host.appendChild(card);
+    const cv = card.querySelector('canvas'), sc = 2;
+    cv.width = FW * sc; cv.height = FH * sc;
+    const ctx = cv.getContext('2d');
+    const slider = card.querySelector('input'), btn = card.querySelector('.play'), speed = card.querySelector('select');
+    let k = n, timer = null;
+    const draw = () => { drawFrame(ctx, b, frames, k, sc); slider.value = k; };
+    const stop = () => { clearInterval(timer); timer = null; btn.textContent = '▶ Play'; };
+    const play = () => {
+      if (k >= n) k = 0; draw(); btn.textContent = '❚❚ Pause';
+      timer = setInterval(() => { if (k >= n) return stop(); k++; draw(); }, +speed.value);
+    };
+    btn.onclick = () => timer ? stop() : play();
+    speed.onchange = () => { if (timer) { stop(); play(); } };
+    slider.oninput = () => { stop(); k = +slider.value; draw(); };
+    draw();
+    card.querySelector('.dlgif').onclick = () => gifStore[b.num] && downloadBlob(gifStore[b.num], gifName(b));
+  });
+
+  $('dlCsv').onclick = () => downloadBlob(new Blob([toCsv()], { type: 'text/csv' }), `sdt-demo_${safe(session.participant)}_${session.id}.csv`);
+  $('dlAllGifs').onclick = async () => { for (const b of session.blocks) { if (gifStore[b.num]) { downloadBlob(gifStore[b.num], gifName(b)); await sleep(400); } } };
+
+  saveEverything(finals);
+}
+
+// =====================================================================
+//  GIFs, CSV, and saving to Google
+// =====================================================================
+const safe = (s) => (s || 'anon').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40) || 'anon';
+const gifName = (b) => `sdt-demo_${safe(session.participant)}_${session.id}_block${b.num}_coh${Math.round(b.coherence * 100)}_${b.duration}ms.gif`;
+
+async function makeGif(block, frames) {
+  const { GIFEncoder, quantize, applyPalette } = window.gifenc;
+  const cv = document.createElement('canvas'); cv.width = FW; cv.height = FH;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  const gif = GIFEncoder();
+  for (let k = 0; k < frames.length; k++) {
+    drawFrame(ctx, block, frames, k, 1);
+    const { data } = ctx.getImageData(0, 0, FW, FH);
+    const palette = quantize(data, 128);
+    const index = applyPalette(data, palette);
+    gif.writeFrame(index, FW, FH, { palette, delay: k === 0 ? 1500 : k === frames.length - 1 ? 4000 : 500 });
+    if (k % 4 === 3) await sleep(0); // keep the page responsive
+  }
+  gif.finish();
+  return new Blob([gif.bytes()], { type: 'image/gif' });
+}
+
+function blobToBase64(blob) { return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob); }); }
+function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+
+function trialRows() {
+  const rows = [];
+  for (const b of session.blocks) for (const t of b.trials) rows.push({
+    session_id: session.id, participant: session.participant, block: b.num, coherence: b.coherence, duration_ms: b.duration,
+    trial: t.trial, signal: t.signal, direction_deg: t.signal === 'present' ? t.direction : '', n_coherent_dots: t.nCoherent,
+    response: t.response, outcome: t.outcome, rt_ms: t.rt == null ? '' : t.rt,
+  });
+  return rows;
+}
+function blockRows(finals) {
+  return session.blocks.map((b, i) => { const s = finals[i][finals[i].length - 1]; return {
+    session_id: session.id, participant: session.participant, started: session.started, block: b.num,
+    coherence: b.coherence, duration_ms: b.duration, n_trials: b.trials.length,
+    hits: s.h, misses: s.m, false_alarms: s.fa, correct_rejections: s.cr, no_response: s.nr,
+    hit_rate: s.hr ?? '', fa_rate: s.far ?? '', hit_rate_corrected: +s.hrC.toFixed(4), fa_rate_corrected: +s.farC.toFixed(4),
+    accuracy: s.acc == null ? '' : +s.acc.toFixed(4), d_prime: +s.d.toFixed(4), criterion_c: +s.c.toFixed(4),
+    gif_file: gifName(b), screen: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`,
+  }; });
+}
+function toCsv() {
+  const rows = trialRows(), cols = Object.keys(rows[0]);
+  const esc = (v) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  return [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+}
+
+const canSave = () => /^https:\/\/script\.google\.com\//.test(SCRIPT_URL);
+function post(obj) {
+  return fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(obj) });
+}
+
+async function saveEverything(finals) {
+  const st = $('saveStatus');
+  const setSt = (msg, cls = '') => { st.className = 'status ' + cls; st.innerHTML = msg; };
+  const online = canSave();
+  let dataOk = false;
+  if (online) {
+    setSt('Saving your data…');
+    try { await post({ type: 'session', blocks: blockRows(finals), trials: trialRows() }); dataOk = true; }
+    catch (e) { console.error(e); }
+  }
+  let made = 0, sent = 0;
+  for (let i = 0; i < session.blocks.length; i++) {
+    const b = session.blocks[i];
+    setSt(`${dataOk ? 'Data saved ✓ · ' : ''}Making GIF ${i + 1} of ${session.blocks.length}… <span class="muted">(please keep this page open)</span>`);
+    try {
+      const blob = await makeGif(b, finals[i]); gifStore[b.num] = blob; made++;
+      const btn = $('blockReports').children[i].querySelector('.dlgif'); btn.disabled = false; btn.textContent = 'Download this block as a GIF';
+      if (online) { await post({ type: 'gif', session_id: session.id, participant: session.participant, block: b.num, name: gifName(b), data: await blobToBase64(blob) }); sent++; }
+    } catch (e) { console.error(e); }
+  }
+  $('dlAllGifs').disabled = made === 0;
+  if (!online) setSt('Your results are below. <b>Nothing was saved online</b> (this copy of the page has no Google Sheet connected), so use the download buttons to keep your data and GIFs.', 'warn');
+  else if (dataOk && sent === session.blocks.length) setSt('All done ✓ Your data and all 4 GIFs were sent to your instructor. You can also download them below.', 'ok');
+  else setSt(`Some uploads may have failed (data: ${dataOk ? 'sent' : 'failed'}, GIFs sent: ${sent} of ${session.blocks.length}). Please use the download buttons below and send the files to your instructor.`, 'warn');
+}
+
+// =====================================================================
+//  Start-up
+// =====================================================================
+(function init() {
+  const desktop = window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches && window.innerWidth >= 800;
+  if (!desktop) return show('gate');
+  show('welcome');
+  $('pid').addEventListener('input', () => { $('toInstr').disabled = !$('pid').value.trim(); });
+  $('pid').addEventListener('keydown', (e) => { if (e.key === 'Enter' && $('pid').value.trim()) $('toInstr').click(); });
+  $('toInstr').onclick = () => { session.participant = $('pid').value.trim(); $('pid').blur(); show('instructions'); startDemos(); };
+  $('toPractice').onclick = async () => { $('toPractice').blur(); await document.fonts.ready; runSession(); };
+  window.addEventListener('beforeunload', (e) => { if (session.started && !$('report').classList.contains('on')) { e.preventDefault(); e.returnValue = ''; } });
+})();
+
+// Test hook: lets an automated check skip ahead with simulated answers.
+window.__sdtTest = { session, buildReport, outcomeOf, CONDITIONS, N_TRIALS };
+</script>
+</body>
+</html>
